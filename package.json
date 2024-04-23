@@ -21,6 +21,6 @@
     "argparse": "2.0.1",
     "falafel": "0.3.1",
     "js-beautify": "1.8.9",
-    "source-map": "0.6.1"
+    "source-map": "0.7.3"
   }
 }
