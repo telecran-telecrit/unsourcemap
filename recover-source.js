@@ -48,55 +48,44 @@ map.then((sourceMap) => {
             fs.writeFileSync(dest, contents, 'utf8', 0o644);
         } else {
             const lines = minifiedCode.split('\n');
-            let reconstructedSource = '';
-            let lastSource = null;
-            let before = 0;
-            
+            const reconstructedSource = {};
+
             lines.forEach((line, lineIndex) => {
                 const lineNum = lineIndex + 1;
-                const columnCount = line.length;
+                const segments = line.split(';');
 
-                for (let column = 0; column < columnCount; column++) {
-                    const pos = { line: lineNum, column: before+column };
+                segments.forEach((segment, segmentIndex) => {
+                    const column = segment.length;
+                    const pos = {
+                        line: lineNum,
+                        column: column
+                    };
                     const originalPosition = sourceMap.originalPositionFor(pos);
-                    lastSource = originalPosition.source || lastSource;
-                    if (originalPosition.source === null) {
-                        reconstructedSource += minifiedCode.charAt(before+column);
-                        continue;
+
+                    if (originalPosition.source === null || originalPosition.name === null) {
+                        return;
                     }
-                    lastSource = originalPosition.source;
-                    if (originalPosition.name) {
-                        ///reconstructedSource += minifiedCode.charAt(before+column);
-                        reconstructedSource += ' ' + originalPosition.name;
-                        let column2 = column;
-                        do {
-                            pos2 = { line: lineNum, column: ++column2 + before };
-                            if (column2 >= columnCount) {
-                                break;
-                            }
-                            originalPosition2 = sourceMap.originalPositionFor(pos2);
-                        } while (originalPosition2.name == originalPosition.name && originalPosition2.line == originalPosition.line && originalPosition2.column == originalPosition.column);
-                        column = column2 - 1;
-                        
-                        
-                    } else {
-                        reconstructedSource += minifiedCode.charAt(before+column);
+
+                    if (!reconstructedSource[originalPosition.source]) {
+                        reconstructedSource[originalPosition.source] = [];
                     }
-                }
-                before += columnCount;
-                if (!!lastSource) {
-                    reconstructedSource += '\n';
-                }
+
+                    // Replace the obfuscated name with the original name
+                    segments[segmentIndex] = segment.replace(/[_$][\w\d]+/g, originalPosition.name);
+                });
+
+                lines[lineIndex] = segments.join(';');
+
             });
 
-            //for (const source in reconstructedSource) {
-                let prettyCode = reconstructedSource;
+            for (const source in reconstructedSource) {
+                let prettyCode = lines.join('\n');
                 const formattedCode = prettyCode; //prettier.format(prettyCode, { parser: 'babel' });
                 // Log the reconstructed source code
-                console.log(`Source: ${lastSource}`);
+                console.log(`Source: ${source}`);
                 //console.log('Content:', formattedCode);
                 fs.writeFileSync(dest, formattedCode, 'utf8', 0o644);
-            //}
+            }
 
         }
     }
