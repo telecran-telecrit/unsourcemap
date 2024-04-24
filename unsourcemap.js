@@ -43,12 +43,86 @@ function isAlphaNum (str) {
     if (!(code > 47 && code < 58) && // numeric (0-9)
         !(code > 64 && code < 91) && // upper alpha (A-Z)
         !(code > 96 && code < 123) && // lower alpha (a-z)
-        !(str[i] == '_')) { // underline
+        !(code >= 256) && // normal unicode
+        !(str[i] == '_') && // underline
+        !(str[i] == '$')) { // dollar
       return false;
     }
   }
   return true;
 };
+
+function isLikeSpace (h) {
+    return h === ' ' || h === '\t' || h === '\r' || h === '\n' || h === '\b' || h === '\v'  || h === '\f' || h.charCodeAt(0) <= 32 || h.charCodeAt(0) == 127;
+}
+
+function isPunctuation (h, excludePunctuations = []) {
+    return ['=', '.', ',', ':', ';', '{', '}', '[', ']', '(', ')', '<' , '>', '?', '!', '+', '-', '*', '/', '\\', '|', '%', '#', '@', '~', '^', '&', "'", '"', '`', '\u2019'].includes(h) && !excludePunctuations.includes(h);
+}
+
+function isReserved (beginStr) {
+    //console.log('!isReserved: ', beginStr);
+    return ['abstract',	'arguments',	'await', 'async',	'boolean', 'break',	'byte',	'case',	'catch', 'char',	'class',	'const',	'continue', 'debugger', 'default',	'delete',	'do', 'double',	'else',	'enum',	'eval', 'export',	'extends',	'false',	'final', 'finally',	'float',	'for',	'function', 'goto',	'if',	'implements',	'import', 'in', 'of',	'instanceof',	'int',	'interface', 'let',	'long',	'native',	'new', 'null', 'undefined',	'package',	'private',	'protected', 'public',	'return',	'short',	'static', 'super',	'switch',	'synchronized',	'this', 'throw',	'throws',	'transient',	'true', 'try',	'typeof',	'var',	'void', 'volatile',	'while',	'with',	'yield',].includes(beginStr);
+}
+
+function endsWithPunctuation (beginStr, excludePunctuations = []) {
+    let pos = beginStr.length - 1;
+    while (pos >= 0) {
+        h = beginStr[pos];
+        if (!isLikeSpace(h)) {
+            break;
+        }
+        --pos;
+    }
+    if (pos >= 0) {
+        h = beginStr[pos];
+        return isPunctuation(h, excludePunctuations);
+    } else {
+        return false;
+    }
+} 
+
+function endsWithReserved (beginStr, excludePunctuations = []) {
+    let pos = beginStr.length - 1;
+    while (pos >= 0) {
+        h = beginStr[pos];
+        if (!isLikeSpace(h)) {
+            break;
+        }
+        --pos;
+    }
+    if (pos >= 0) {
+        const posEnd = pos;
+        --pos;
+        
+        while (pos >= 0) {
+            h = beginStr[pos];
+            if (isLikeSpace(h) || isPunctuation(h, excludePunctuations)) {
+                break;
+            }
+            --pos;
+        }
+        if (pos < 0) {
+            pos = 0;
+            if (pos >= posEnd) {
+                pos = -1;
+            }
+        }
+        
+        if (pos >= 0) {
+            return isReserved(beginStr.substring(pos + 1, posEnd + 1));
+        } else {
+            return false;
+        }
+        
+        //h = beginStr[pos];
+        //return isPunctuation(h);
+    } else {
+        return false;
+    }
+} 
+
+const _TABULATION = ' ';
 
 var map = new sourceMap.SourceMapConsumer(mapData);
 
@@ -69,12 +143,18 @@ map.then((sourceMap) => {
             let lastSource = null;
             let before = 0;
             let lastLine = 1;
+            let wasBeginShifting = false;
+            let wasBeginShiftingOnLine = -1; 
+            let fixedBeginShifting = 0;
+            let quoteMode = ' ';
+            let quotePrev = '_';
+            let horizontalDeep = 0;
             
             lines.forEach((line, lineIndex) => {
                 const lineNum = lineIndex + 1;
                 const columnCount = line.length;
                 before = 0;                
-                console.log(lineNum);
+                //console.log(lineNum);
                 
 
                 for (let column = 0; column < columnCount; column++) {
@@ -90,9 +170,158 @@ map.then((sourceMap) => {
                         if (!isAlphaNum(line.charAt(before+column))) {
                             reconstructedSource += '' + line.charAt(before+column);
                         }
-                        while (originalPosition.line > lastLine) {
-                            reconstructedSource += '\n';
+                        wasBeginShifting = false;
+                        console.log('lastLine', lastLine);
+                        while (originalPosition.line > lastLine) { // condition also avoids supercodes on same line
+                            reconstructedSource = reconstructedSource.replace(/  ;/g, ';');
+                            reconstructedSource = reconstructedSource.replace(/ ;/g, ';');
+                            reconstructedSource = reconstructedSource.replace(/;/g, ' ;');
+                            let reconstructedSourceOrig = reconstructedSource;
+                            let quoteModeWas = quoteMode !== ' ';
+                            let quoteSemicolonWas = false; 
+                            
+                            let isSemicolon = reconstructedSourceOrig.trim().split('').pop() == ';';
+                            let beginStr = reconstructedSource.split('\n').slice(-1)[0];
+                            
+                            if (quoteMode === ' ' || quoteMode === 'h' || quoteMode === '*') {
+                                horizontalDeep = 0;
+                                quoteMode = ' ';
+                                quotePrev = '_';
+                            }
+                            if (quoteMode === ' ') {
+                                let pos = 0;
+                                while (pos < beginStr.length) {
+                                    if (beginStr[pos] == '"' || beginStr[pos] == "'" || beginStr[pos] == '`') {
+                                        if ((quoteMode === ' ' || quoteMode === 'h')) {
+                                            quoteMode = beginStr[pos];
+                                        } else if (quoteMode !== '/' && quoteMode !== '*' && quoteMode === beginStr[pos] && quotePrev !== '\\') {
+                                            if (horizontalDeep == 0) {
+                                                quoteMode = ' ';
+                                            } else {
+                                                quoteMode = 'h';
+                                            }
+                                        }
+                                    } else if (beginStr[pos] === '/' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                        quoteMode = '/';
+                                    } else if (beginStr[pos] === '*' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                        quoteMode = '*';
+                                    } else if (beginStr[pos] === '/' && quotePrev === '*' && quoteMode === '*') {
+                                        if (horizontalDeep == 0) {
+                                            quoteMode = ' ';
+                                        } else {
+                                            quoteMode = 'h';
+                                        }
+                                    } else if (beginStr[pos] === '\n' && quoteMode === '/') {
+                                        if (horizontalDeep == 0) {
+                                            quoteMode = ' ';
+                                        } else {
+                                            quoteMode = 'h';
+                                        }
+                                    } else if (beginStr[pos] === '\n' && quoteMode !== '*' && quoteMode !== '`' && quoteMode !== ' ' && quoteMode !== 'h') {
+                                        beginStr[pos] = ' '; // fix possible error 1
+                                    } else if (beginStr[pos] === ')' && quotePrev !== '\\' && quoteMode === 'h') {
+                                        --horizontalDeep;
+                                        if (horizontalDeep <= 0) {
+                                            quoteMode = ' ';
+                                            horizontalDeep = 0;
+                                        }
+                                    } else if (beginStr[pos] === '(' && quotePrev !== '\\' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                        quoteMode = 'h';
+                                        ++horizontalDeep;
+                                    }
+                                    if (beginStr[pos] == ';' && quoteMode !== ' ') {
+                                        quoteSemicolonWas = true;
+                                    }
+                                    quoteModeWas = quoteModeWas || (quoteMode !== ' ' && quoteMode !== 'h');
+                                    quotePrev = beginStr[pos++];
+                                    //console.log(quotePrev);
+                                }
+                            } else {
+                                quoteSemicolonWas = true;
+                            }
+                            
+                            if (!quoteSemicolonWas) {
+                                reconstructedSource = reconstructedSourceOrig;
+                                /////reconstructedSource = reconstructedSource.replace(/;/g, '\n'); // TODO: exclude quoted semicolon
+                                reconstructedSource = reconstructedSource.replace(/ ;/g, ';\n'); // TODO: exclude quoted semicolon
+                                beginStr = reconstructedSource.split('\n').slice(-1)[0];
+                                if (isSemicolon) {
+                                    beginStr = beginStr.trim() + ';';
+                                }
+                            }
+                            
+                            let diffCount = reconstructedSource.split('\n').length - reconstructedSourceOrig.split('\n').length;
+                            //console.log('beginStr0', beginStr);
+                            //console.log('quoteMode', quoteMode, horizontalDeep, quoteModeWas, quoteSemicolonWas);
+                            if (quoteMode !== ' ' && quoteMode !== 'h') {
+                                beginStr = '';
+                                wasBeginShifting = true;
+                            } else {
+                                
+                                //console.log('beginStr0', beginStr);
+                                //console.log('beginStr.length', beginStr.length);
+                                //console.log('reconstructedSource.length - beginStr.length', reconstructedSource.length - beginStr.length)
+                                //console.log('fixedBeginShifting', fixedBeginShifting);
+                                //console.log('fixedBeginShifting <=', fixedBeginShifting <= reconstructedSource.length - beginStr.length)
+                                beginSpecial = false;
+                                if (!wasBeginShifting && fixedBeginShifting <= reconstructedSource.length - beginStr.length && (endsWithPunctuation(beginStr, ['{', '}']) || endsWithReserved(beginStr) || (beginSpecial = endsWithPunctuation(beginStr)))) {
+                                    reconstructedSource = reconstructedSource.split('\n').slice(0, -1).join('\n');
+                                    wasBeginShifting = true;
+                                    wasBeginShiftingOnLine = originalPosition.line;
+                                    //if (isSemicolon && diffCount > 0) {
+                                    //    beginStr = beginStr.trim() + ';';
+                                    //    --diffCount;
+                                    //}
+                                } else {
+                                    reconstructedSource = reconstructedSourceOrig;
+                                    beginStr = ''
+                                }
+                                let k1 = reconstructedSource.split('\n').length;
+                                if (diffCount > 0) {
+                                    if (beginStr.trim().length > 0) {
+                                        if (reconstructedSourceOrig.length > reconstructedSource.length && (reconstructedSourceOrig[reconstructedSource.length] == '\n' || reconstructedSourceOrig[reconstructedSource.length] == ';')) {
+                                            reconstructedSource = reconstructedSourceOrig.substring(0, reconstructedSource.length + 1);
+                                        } else {
+                                            reconstructedSource = reconstructedSourceOrig.substring(0, reconstructedSource.length);
+                                        }
+                                        reconstructedSource = reconstructedSourceOrig.substring(0, reconstructedSource.length + 1);
+                                        if (reconstructedSource[reconstructedSource.length - 1] != '\n' && reconstructedSource[reconstructedSource.length - 1] != ';') {
+                                            reconstructedSource = reconstructedSourceOrig.substring(0, reconstructedSource.length - 1);
+                                        }
+                                    } else {
+                                        reconstructedSource = reconstructedSourceOrig;
+                                    }
+                                }
+                                let k2 = reconstructedSource.split('\n').length;
+                                diffCount -= Math.abs(k1 - k2);
+                                beginStr = beginStr.trim();
+                                //console.log('beginStr ', beginStr);
+                                if (diffCount >= 1 && beginStr == '') {
+                                    //reconstructedSource += ';';
+                                    //--diffCount;
+                                }
+                                //console.log('diffCount', diffCount);
+                                
+                                reconstructedSource += '\n'.repeat((originalPosition.line - lastLine - 1 >= 0) ? originalPosition.line - lastLine - 1 : 0);
+                                const leftTabs = (beginStr.length > originalPosition.column) ? originalPosition.column : originalPosition.column - beginStr.length;
+                                if (beginSpecial) {
+                                    reconstructedSource += ((_TABULATION.repeat(leftTabs - 1 >= 0 ? leftTabs - 1 : 0))) + beginStr;
+                                }
+                                reconstructedSource += '\n' + ((_TABULATION.repeat(leftTabs))); /// + originalPosition.column + '000' + originalPosition.line + ' ');
+                                //console.log('reconstructedSource ', reconstructedSource, '\n\n\n');
+                                if (!beginSpecial) {
+                                    reconstructedSource += beginStr;
+                                }
+                            }
+                            fixedBeginShifting = reconstructedSource.length;
+                            
                             ++lastLine;
+                            lastLine = originalPosition.line;
+                        }
+                        if (!wasBeginShifting) {
+                            horizontalDeep = 0;
+                            quoteMode = ' ';
+                            quotePrev = '_';
                         }
                         supercode = originalPosition.name + '__' + originalPosition.line + '__' + originalPosition.column;
                         supermode = false;
@@ -102,6 +331,9 @@ map.then((sourceMap) => {
                             supercodes.push(supercode);
                         }
                         if (!supermode) {
+                            if (endsWithReserved(reconstructedSource)) {
+                                reconstructedSource += ' ';
+                            }
                             //reconstructedSource += '' + supercode + '__';
                             reconstructedSource += '' + originalPosition.name;
                         }
@@ -126,8 +358,9 @@ map.then((sourceMap) => {
                             }
                         } while (originalPosition2.name == originalPosition.name && originalPosition2.line == originalPosition.line && originalPosition2.column == originalPosition.column);
                         column = column2 - 1;
-                        
-                        reconstructedSource += ' ';
+                        if (endsWithReserved(reconstructedSource)) {
+                            reconstructedSource += ' ';
+                        }
                     } else {
                         reconstructedSource += line.charAt(before+column);
                     }
@@ -138,8 +371,18 @@ map.then((sourceMap) => {
                 //}
             });
 
-            //for (const source in reconstructedSource) {
-                let prettyCode = reconstructedSource;
+            let prettyCode = '';
+            let wasReserved = false;
+            for (let source of reconstructedSource.split('\n')) {
+                if (wasReserved) {
+                    wasReserved = source.trim().length == 0 || !endsWithPunctuation(source) || endsWithReserved(source);
+                    prettyCode += ' ';
+                } else {
+                    prettyCode += '\n';
+                    wasReserved = endsWithReserved(source);
+                }
+                prettyCode += source;
+            }
                 const formattedCode = prettyCode; //prettier.format(prettyCode, { parser: 'babel' });
                 // Log the reconstructed source code
                 console.log(`Source: ${lastSource}`);
