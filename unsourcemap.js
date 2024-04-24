@@ -262,6 +262,8 @@ map.then((sourceMap) => {
                             if (!quoteSemicolonWas) {
                                 reconstructedSource = reconstructedSourceOrig;
                                 /////reconstructedSource = reconstructedSource.replace(/;/g, '\n'); // TODO: exclude quoted semicolon
+                                reconstructedSource = reconstructedSource.replace(/;\n\n\n/g, '  ;\n');
+                                reconstructedSource = reconstructedSource.replace(/;\n\n/g, ' ;\n');
                                 reconstructedSource = reconstructedSource.replace(/ ;/g, ';\n'); // TODO: exclude quoted semicolon
                                 beginStr = reconstructedSource.split('\n').slice(-1)[0];
                                 if (isSemicolon) {
