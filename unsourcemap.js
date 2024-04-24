@@ -133,9 +133,9 @@ map.then((sourceMap) => {
                     }
                 }
                 before += columnCount;
-                if (!!lastSource) {
-                    reconstructedSource += '\n';
-                }
+                //if (!!lastSource) {
+                //    reconstructedSource += '\n';
+                //}
             });
 
             //for (const source in reconstructedSource) {
