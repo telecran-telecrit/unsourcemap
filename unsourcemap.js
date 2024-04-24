@@ -176,6 +176,7 @@ map.then((sourceMap) => {
                             reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|  ;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ' ;');
                             reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))| ;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ';');
                             reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ' ;');
+                            //reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|\}/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ';}');
                             let reconstructedSourceOrig = reconstructedSource;
                             let quoteModeWas = quoteMode !== ' ';
                             let quoteSemicolonWas = false; 
@@ -339,6 +340,9 @@ map.then((sourceMap) => {
                                     reconstructedSource += beginStr;
                                 }
                             }
+                            //reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|;\W*\n\W*;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ';\n');
+                            //reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|;\W*;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ';');
+                            
                             fixedBeginShifting = reconstructedSource.length;
                             
                             ++lastLine;
