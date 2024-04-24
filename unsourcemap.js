@@ -147,7 +147,7 @@ map.then((sourceMap) => {
             let wasBeginShiftingOnLine = -1; 
             let fixedBeginShifting = 0;
             let quoteMode = ' ';
-            let quotePrev = '_';
+            let quotePrev = undefined;
             let horizontalDeep = 0;
             
             lines.forEach((line, lineIndex) => {
@@ -173,9 +173,9 @@ map.then((sourceMap) => {
                         wasBeginShifting = false;
                         console.log('lastLine', lastLine);
                         while (originalPosition.line > lastLine) { // condition also avoids supercodes on same line
-                            reconstructedSource = reconstructedSource.replace(/  ;/g, ' ;');
-                            reconstructedSource = reconstructedSource.replace(/ ;/g, ';');
-                            reconstructedSource = reconstructedSource.replace(/;/g, ' ;');
+                            reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|  ;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ' ;');
+                            reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))| ;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ';');
+                            reconstructedSource = reconstructedSource.replace(/(".*?")|('.*?')|(`.*?`)|(\/.*?\/)|(\(.*?\))|;/g, (...m) => m[1] || m[2] || m[3] || m[4] || m[5] || ' ;');
                             let reconstructedSourceOrig = reconstructedSource;
                             let quoteModeWas = quoteMode !== ' ';
                             let quoteSemicolonWas = false; 
@@ -183,57 +183,76 @@ map.then((sourceMap) => {
                             let isSemicolon = reconstructedSourceOrig.trim().split('').pop() == ';';
                             let beginStr = reconstructedSource.split('\n').slice(-1)[0];
                             
-                            if (quoteMode === ' ' || quoteMode === 'h' || quoteMode === '*') {
+                            if (quoteMode === ' ' || quoteMode === 'h' || quoteMode === '*' || quoteMode === 'r') {
                                 horizontalDeep = 0;
                                 quoteMode = ' ';
-                                quotePrev = '_';
+                                quotePrev = undefined;
                             }
                             if (quoteMode === ' ') {
                                 let pos = 0;
                                 while (pos < beginStr.length) {
                                     if (beginStr[pos] == '"' || beginStr[pos] == "'" || beginStr[pos] == '`') {
-                                        if ((quoteMode === ' ' || quoteMode === 'h')) {
+                                        if ((quoteMode === ' ' || quoteMode === 'h')) { // open quote (simple)
                                             quoteMode = beginStr[pos];
-                                        } else if (quoteMode !== '/' && quoteMode !== '*' && quoteMode === beginStr[pos] && quotePrev !== '\\') {
+                                        } else if (quoteMode !== '/' && quoteMode !== '*' && quoteMode === beginStr[pos] && quotePrev !== '\\') { // close qoute
                                             if (horizontalDeep == 0) {
                                                 quoteMode = ' ';
                                             } else {
                                                 quoteMode = 'h';
                                             }
+                                            quotePrev = '\\';
                                         }
-                                    } else if (beginStr[pos] === '/' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                    } else if (beginStr[pos] === '/' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) { // open single comment
                                         quoteMode = '/';
-                                    } else if (beginStr[pos] === '*' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                    } else if (beginStr[pos] === '*' && quotePrev === '/' && (quoteMode === ' ' || quoteMode === 'h')) { // open multi comment
                                         quoteMode = '*';
-                                    } else if (beginStr[pos] === '/' && quotePrev === '*' && quoteMode === '*') {
+                                    } else if (beginStr[pos] === '/' && quotePrev === '*' && quoteMode === '*') { // close multi comment
                                         if (horizontalDeep == 0) {
                                             quoteMode = ' ';
                                         } else {
                                             quoteMode = 'h';
                                         }
-                                    } else if (beginStr[pos] === '\n' && quoteMode === '/') {
+                                        quotePrev = '\\';
+                                    } else if (beginStr[pos] === '\n' && quoteMode === '/') { // close single comment
                                         if (horizontalDeep == 0) {
                                             quoteMode = ' ';
                                         } else {
                                             quoteMode = 'h';
                                         }
+                                        quotePrev = '\\';
                                     } else if (beginStr[pos] === '\n' && quoteMode !== '*' && quoteMode !== '`' && quoteMode !== ' ' && quoteMode !== 'h') {
                                         beginStr[pos] = ' '; // fix possible error 1
-                                    } else if (beginStr[pos] === ')' && quotePrev !== '\\' && quoteMode === 'h') {
+                                    } else if (beginStr[pos] === ')' && quotePrev !== undefined && quotePrev !== '\\' && quoteMode === 'h') { // close round bracket
                                         --horizontalDeep;
                                         if (horizontalDeep <= 0) {
                                             quoteMode = ' ';
                                             horizontalDeep = 0;
                                         }
-                                    } else if (beginStr[pos] === '(' && quotePrev !== '\\' && (quoteMode === ' ' || quoteMode === 'h')) {
+                                    } else if (beginStr[pos] === '(' && quotePrev !== undefined && quotePrev !== '\\' && (quoteMode === ' ' || quoteMode === 'h')) { // open round bracket
                                         quoteMode = 'h';
                                         ++horizontalDeep;
+                                    } else if (beginStr[pos] === '/' && quotePrev !== undefined && quotePrev !== '\\' && quoteMode === 'r') { // close regex
+                                        if (horizontalDeep == 0) {
+                                            quoteMode = ' ';
+                                        } else {
+                                            quoteMode = 'h';
+                                        }
+                                        //console.log(quotePrev, beginStr[pos]);
+                                        quotePrev = '\\';
+                                    } else if (beginStr[pos] === '/' &&  quotePrev != '/' && quotePrev != '*' && quotePrev != '\\' && (quoteMode === ' ' || quoteMode === 'h') && endsWithPunctuation(beginStr.substring(0, pos), ['}', ']', ')', '>', '<'])) { // open regex
+                                        quoteMode = 'r';
+                                        //console.log(quotePrev, beginStr[pos]); 
                                     }
-                                    if (beginStr[pos] == ';' && quoteMode !== ' ') {
+                                    if (beginStr[pos] == ';' && quoteMode !== ' ') { // semicolon within any quotation mode is danger
                                         quoteSemicolonWas = true;
                                     }
                                     quoteModeWas = quoteModeWas || (quoteMode !== ' ' && quoteMode !== 'h');
-                                    quotePrev = beginStr[pos++];
+                                    if (quotePrev === '\\') {
+                                        quotePrev = '_'
+                                    } else {
+                                        quotePrev = beginStr[pos];
+                                    }
+                                    pos++;
                                     //console.log(quotePrev);
                                 }
                             } else {
@@ -253,6 +272,11 @@ map.then((sourceMap) => {
                             let diffCount = reconstructedSource.split('\n').length - reconstructedSourceOrig.split('\n').length;
                             //console.log('beginStr0', beginStr);
                             //console.log('quoteMode', quoteMode, horizontalDeep, quoteModeWas, quoteSemicolonWas);
+                            
+                            if (quoteMode === 'r') {
+                                //console.log('beginStr0', beginStr);
+                            }
+                            
                             if (quoteMode !== ' ' && quoteMode !== 'h') {
                                 beginStr = '';
                                 wasBeginShifting = true;
