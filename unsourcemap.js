@@ -35,6 +35,21 @@ function sanitizeSourceName(url) {
     return url.replace(/[^a-zA-Z0-9\-_.:]/g, '_');
 }
 
+function isAlphaNum (str) {
+  var code, i, len;
+
+  for (i = 0, len = str.length; i < len; i++) {
+    code = str.charCodeAt(i);
+    if (!(code > 47 && code < 58) && // numeric (0-9)
+        !(code > 64 && code < 91) && // upper alpha (A-Z)
+        !(code > 96 && code < 123) && // lower alpha (a-z)
+        !(str[i] == '_')) { // underline
+      return false;
+    }
+  }
+  return true;
+};
+
 var map = new sourceMap.SourceMapConsumer(mapData);
 
 map.then((sourceMap) => {
@@ -48,26 +63,54 @@ map.then((sourceMap) => {
             fs.writeFileSync(dest, contents, 'utf8', 0o644);
         } else {
             const lines = minifiedCode.split('\n');
+            let supercodes = [];
+            console.log('lines min: ', lines.length);
             let reconstructedSource = '';
             let lastSource = null;
             let before = 0;
+            let lastLine = 1;
             
             lines.forEach((line, lineIndex) => {
                 const lineNum = lineIndex + 1;
                 const columnCount = line.length;
+                before = 0;                
+                console.log(lineNum);
+                
 
                 for (let column = 0; column < columnCount; column++) {
                     const pos = { line: lineNum, column: before+column };
                     const originalPosition = sourceMap.originalPositionFor(pos);
                     lastSource = originalPosition.source || lastSource;
-                    if (originalPosition.source === null) {
-                        reconstructedSource += minifiedCode.charAt(before+column);
+                    if (originalPosition.source === null || !isAlphaNum(line.charAt(before+column)) || !originalPosition.name) {
+                        reconstructedSource += line.charAt(before+column);
                         continue;
                     }
                     lastSource = originalPosition.source;
                     if (originalPosition.name) {
-                        ///reconstructedSource += minifiedCode.charAt(before+column);
-                        reconstructedSource += ' ' + originalPosition.name;
+                        if (!isAlphaNum(line.charAt(before+column))) {
+                            reconstructedSource += '' + line.charAt(before+column);
+                        }
+                        while (originalPosition.line > lastLine) {
+                            reconstructedSource += '\n';
+                            ++lastLine;
+                        }
+                        supercode = originalPosition.name + '__' + originalPosition.line + '__' + originalPosition.column;
+                        supermode = false;
+                        if (supercodes.includes(supercode)) {
+                            supermode = true;
+                        } else {
+                            supercodes.push(supercode);
+                        }
+                        if (!supermode) {
+                            //reconstructedSource += '' + supercode + '__';
+                            reconstructedSource += '' + originalPosition.name;
+                        }
+                        
+                        if (isAlphaNum(line.charAt(before+column))) {
+                            if (supermode) {
+                                reconstructedSource += '' + line.charAt(before+column);
+                            }
+                        }
                         let column2 = column;
                         do {
                             pos2 = { line: lineNum, column: ++column2 + before };
@@ -75,12 +118,18 @@ map.then((sourceMap) => {
                                 break;
                             }
                             originalPosition2 = sourceMap.originalPositionFor(pos2);
+                            if (!isAlphaNum(line.charAt(before+column2))) {
+                                break;
+                            }
+                            if (supermode) {
+                                reconstructedSource += '' + line.charAt(before+column2);
+                            }
                         } while (originalPosition2.name == originalPosition.name && originalPosition2.line == originalPosition.line && originalPosition2.column == originalPosition.column);
                         column = column2 - 1;
                         
-                        
+                        reconstructedSource += ' ';
                     } else {
-                        reconstructedSource += minifiedCode.charAt(before+column);
+                        reconstructedSource += line.charAt(before+column);
                     }
                 }
                 before += columnCount;
