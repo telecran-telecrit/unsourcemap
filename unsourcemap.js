@@ -173,7 +173,7 @@ map.then((sourceMap) => {
                         wasBeginShifting = false;
                         console.log('lastLine', lastLine);
                         while (originalPosition.line > lastLine) { // condition also avoids supercodes on same line
-                            reconstructedSource = reconstructedSource.replace(/  ;/g, ';');
+                            reconstructedSource = reconstructedSource.replace(/  ;/g, ' ;');
                             reconstructedSource = reconstructedSource.replace(/ ;/g, ';');
                             reconstructedSource = reconstructedSource.replace(/;/g, ' ;');
                             let reconstructedSourceOrig = reconstructedSource;
@@ -246,7 +246,7 @@ map.then((sourceMap) => {
                                 reconstructedSource = reconstructedSource.replace(/ ;/g, ';\n'); // TODO: exclude quoted semicolon
                                 beginStr = reconstructedSource.split('\n').slice(-1)[0];
                                 if (isSemicolon) {
-                                    beginStr = beginStr.trim() + ';';
+                                    //beginStr = beginStr.trim() + ';';
                                 }
                             }
                             
