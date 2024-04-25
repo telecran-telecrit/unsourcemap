@@ -1,8 +1,8 @@
 {
-  "name": "maximize",
-  "version": "0.0.1",
+  "name": "unsourcemap",
+  "version": "0.2.6",
   "author": "Chase Douglas <chasedouglas@gmail.com>",
-  "description": "Unobfuscate and beautify obfuscated/minified JavaScript code with source maps",
+  "description": "Unobfuscate obfuscated/minified JavaScript code with source maps",
   "contributors": [
     {
       "name": "Chase Douglas",
@@ -10,11 +10,11 @@
     }
   ],
   "bin": {
-    "maximize": "./maximize.js"
+    "unsourcemap": "./unsourcemap.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/txase/maximize.git"
+    "url": "https://github.com/telecran-telecrit/unsourcemap.git"
   },
   "dependencies": {
     "seq": "*",
