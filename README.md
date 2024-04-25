@@ -1,37 +1,43 @@
-Maximize - Deobfuscate and beautify JavaScript code with source maps
+Unsourcemap - Deobfuscate JavaScript code with source maps
 =====================================================================
 
-Maximize will deobfuscate and beautify minified code using
-[source maps](http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/).
-Source
-maps map compiled code back to the original code, including mangled to original
-function and variable names. [JS Beautifier](http://jsbeautifier.org/) is used
-under the hood for beautifying.
-
-This program will fail if source maps are not provided and available. Use JS
-Beautifier directly for beautifying code without transforming variable and
-function names.
-
-As an example, see the
-[minified script](https://gist.github.com/txase/6043155#file-minified-script)
-and the generated
-[maximized script](https://gist.github.com/txase/6043177#file-maximized-script)
-from http://dev.fontdragr.com.
-
 ## Installation
-`npm install -g maximize`
+`npm install -g unsourcemap`
+
+TODO: publish
 
 ## Usage
 ```
-usage: maximize.js [-h] [-b BEAUTIFY_OPTS] url
+usage: unsourcemap.js [-h] url
 
-Deobfuscate and beautify JavaScript code with source maps
+Deobfuscate JavaScript code with source maps
 
 Positional arguments:
-  url                   URL of javascript to maximize
+  url                   URL or FILE of javascript to Unsourcemap
 
 Optional arguments:
   -h, --help            Show this help message and exit.
   -b BEAUTIFY_OPTS, --beautify-opts BEAUTIFY_OPTS
                         JS Beautifier options in JSON format
 ```
+
+Unsourcemap will deobfuscate and beautify minified code using
+[source maps](http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/).
+[source maps library](https://github.com/mozilla/source-map).
+Source
+maps map compiled code back to the original code, including mangled to original
+function and variable names. [JS Beautifier](http://jsbeautifier.org/) is used
+under the hood for beautifying.
+
+TODO: optional JS Beautifier.
+
+This program will fail if source maps are not provided and available. Use JS
+Beautifier directly for beautifying code without transforming variable and
+function names.
+
+As an example, see the
+[Minified script](https://gist.github.com/txase/6043155#file-min-script)
+and the generated
+[Unsourcemapd script](https://gist.github.com/txase/6043177#file-full-script)
+from http://dev.fontdragr.com.
+
